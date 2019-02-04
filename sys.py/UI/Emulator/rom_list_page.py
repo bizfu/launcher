@@ -4,11 +4,12 @@ import os
 import pygame
 
 import glob
+import re
 import shutil
 import gobject
 import validators
 #from pySmartDL import SmartDL
-
+import time
 
 from libs.roundrects import aa_round_rect
 
@@ -23,6 +24,8 @@ from UI.keys_def   import CurKeys
 from UI.multi_icon_item import MultiIconItem
 from UI.icon_pool  import MyIconPool
 from UI.scroller   import ListScroller
+from UI.skin_manager import MySkinManager
+from UI.lang_manager import MyLangManager
 
 from rom_so_confirm_page import RomSoConfirmPage
 
@@ -57,7 +60,7 @@ class RomStack:
         return len(self.stack)
 
 class ListPageSelector(PageSelector):
-    _BackgroundColor = pygame.Color(131,199,219)
+    _BackgroundColor = MySkinManager.GiveColor('Front')
 
     def __init__(self):
         self._PosX = 0
@@ -96,7 +99,7 @@ class RomListPage(Page):
 
     _Icons = {}
     _Selector=None
-    _FootMsg = ["Nav","Scan","Del","Add Fav","Run"]
+    _FootMsg = ["Nav","Scan","Del","AddFav","Run"]
     _MyList = []
     _ListFont = fonts["notosanscjk15"]
     _MyStack = None
@@ -111,8 +114,8 @@ class RomListPage(Page):
     _BGheight = 70
 
     _RomSoConfirmDownloadPage = None
-    
-    
+
+
     def __init__(self):
         Page.__init__(self)
         
@@ -150,11 +153,18 @@ class RomListPage(Page):
                 
                 bname = os.path.basename(v)  ### filter extension
                 if len(bname)> 1:
-                    pieces  = bname.split(".")
-                    if len(pieces) > 1:
-                        if pieces[ len(pieces)-1   ].lower() in self._Emulator["EXT"]:
-                            dirmap["file"] = v
-                            ret.append(dirmap)
+                    is_excluded = False
+                    for exclude_ext in self._Emulator["EXCLUDE"]:## only compares filename endswith ext in EXCLUDE,splited by ,
+                        if len(exclude_ext) > 1 and bname.endswith(exclude_ext):
+                            is_excluded = True
+                            break
+
+                    if not is_excluded:
+                        pieces  = bname.split(".")
+                        if len(pieces) > 1:
+                            if pieces[ len(pieces)-1   ].lower() in self._Emulator["EXT"]:
+                                dirmap["file"] = v.decode("utf8")
+                                ret.append(dirmap)
 #            else:
 #                print("not file or dir")
 
@@ -255,8 +265,8 @@ class RomListPage(Page):
         bgpng._ImgSurf = MyIconPool._Icons["empty"]
         bgpng._MyType = ICON_TYPES["STAT"]
         bgpng._Parent = self
-        bgpng.AddLabel("Please upload data over Wi-Fi", fonts["varela22"])
-        bgpng.SetLableColor(pygame.Color(204,204,204))
+        bgpng.AddLabel(MyLangManager.Tr("Please upload data over Wi-Fi"), MyLangManager.TrFont("varela22"))
+        bgpng.SetLableColor(MySkinManager.GiveColor('Disabled'))
         bgpng.Adjust(0,0,self._BGwidth,self._BGheight,0)
 
         self._Icons["bg"] = bgpng
@@ -279,28 +289,32 @@ class RomListPage(Page):
         if len(self._MyList) == 0:
             return
         
-        self._PsIndex -= 1
+        tmp = self._PsIndex
+        self._PsIndex -= self._ScrollStep
+        
         if self._PsIndex < 0:
             self._PsIndex = 0
+        dy = tmp - self._PsIndex
         cur_li = self._MyList[self._PsIndex]
         if cur_li._PosY < 0:
             for i in range(0, len(self._MyList)):
-                self._MyList[i]._PosY += self._MyList[i]._Height
-            self._Scrolled +=1
+                self._MyList[i]._PosY += self._MyList[i]._Height*dy
+            self._Scrolled +=dy
 
     def ScrollDown(self):
         if len(self._MyList) == 0:
             return
-        
-        self._PsIndex +=1
+        tmp = self._PsIndex
+        self._PsIndex +=self._ScrollStep
         if self._PsIndex >= len(self._MyList):
             self._PsIndex = len(self._MyList) -1
-
+        
+        dy = self._PsIndex - tmp 
         cur_li = self._MyList[self._PsIndex]
         if cur_li._PosY +cur_li._Height > self._Height:
             for i in range(0,len(self._MyList)):
-                self._MyList[i]._PosY -= self._MyList[i]._Height
-            self._Scrolled -= 1
+                self._MyList[i]._PosY -= self._MyList[i]._Height*dy
+            self._Scrolled -= dy
             
     def SyncScroll(self):
         ## 
@@ -337,8 +351,8 @@ class RomListPage(Page):
                 self.SyncList( self._MyStack.Last() )
                 self._PsIndex = 0
                 
-        if cur_li._MyType == ICON_TYPES["FILE"]: ## add to playlist only
-            self._Screen._MsgBox.SetText("Launching...")
+        if cur_li._MyType == ICON_TYPES["FILE"]: 
+            self._Screen._MsgBox.SetText("Launching")
             self._Screen._MsgBox.Draw()
             self._Screen.SwapAndShow()
 
@@ -348,27 +362,30 @@ class RomListPage(Page):
                 path = cur_li._Path
             
             print("Run  ",path)
-
-            # check ROM_SO exists
-            if FileExists(self._Emulator["ROM_SO"]):
-                if self._Emulator["FILETYPE"] == "dir":
-                    escaped_path = CmdClean(path)
-                else:
-                    escaped_path = CmdClean(path)
-                
-                custom_config = ""
-                if self._Emulator["RETRO_CONFIG"] != "" and len(self._Emulator["RETRO_CONFIG"]) > 5:
-                    custom_config = " -c " + self._Emulator["RETRO_CONFIG"]
-                
-                cmdpath = " ".join( (self._Emulator["LAUNCHER"],self._Emulator["ROM_SO"], custom_config, escaped_path))
-                pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
-                return
+            
+            if self._Emulator["FILETYPE"] == "dir":
+                escaped_path = CmdClean(path)
             else:
+                escaped_path = CmdClean(path)
                 
-                self._Screen.PushPage(self._RomSoConfirmDownloadPage)
-                self._Screen.Draw()
-                self._Screen.SwapAndShow()
-    
+            custom_config = ""
+            if self._Emulator["RETRO_CONFIG"] != "" and len(self._Emulator["RETRO_CONFIG"]) > 5:
+                custom_config = " -c " + self._Emulator["RETRO_CONFIG"]
+                
+            cmdpath = " ".join( (self._Emulator["LAUNCHER"],self._Emulator["ROM_SO"], custom_config, escaped_path))
+                
+            if self._Emulator["ROM_SO"] =="": #empty means No needs for rom so
+                pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
+            else:
+                if FileExists(self._Emulator["ROM_SO"]):
+                    pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
+                else:
+                    self._Screen.PushPage(self._RomSoConfirmDownloadPage)
+                    self._Screen.Draw()
+                    self._Screen.SwapAndShow()
+                    
+            return 
+            
         self._Screen.Draw()
         self._Screen.SwapAndShow()
 
@@ -395,7 +412,20 @@ class RomListPage(Page):
         self.ReScan()        
         self._Screen.Draw()
         self._Screen.SwapAndShow()
-        
+
+    def SpeedScroll(self, thekey):
+        if self._Screen._LastKey == thekey:
+            self._ScrollStep+=1
+            if self._ScrollStep >=5:
+                self._ScrollStep = 5
+        else:
+            self._ScrollStep = 1
+           
+        cur_time = time.time()
+            
+        if cur_time - self._Screen._LastKeyDown > 0.3:
+            self._ScrollStep = 1 
+
     def KeyDown(self,event):
 
         if event.key == CurKeys["Menu"] : 
@@ -410,11 +440,13 @@ class RomListPage(Page):
             self._Screen.SwapAndShow()
         
         if event.key == CurKeys["Up"]:
+            self.SpeedScroll(event.key)
             self.ScrollUp()
             self._Screen.Draw()
             self._Screen.SwapAndShow()
 
         if event.key == CurKeys["Down"]:
+            self.SpeedScroll(event.key)
             self.ScrollDown()
             self._Screen.Draw()
             self._Screen.SwapAndShow()
@@ -435,7 +467,7 @@ class RomListPage(Page):
                 except:
                     pass
                 
-                self._Screen._MsgBox.SetText("Adding to Favourite list")
+                self._Screen._MsgBox.SetText("AddFavList")
                 self._Screen._MsgBox.Draw()
                 self._Screen.SwapAndShow()
                 

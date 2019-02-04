@@ -9,7 +9,8 @@ from UI.fonts  import fonts
 from UI.icon_item import IconItem
 from UI.multi_icon_item  import MultiIconItem
 from UI.icon_pool   import MyIconPool
-
+from UI.skin_manager import MySkinManager
+from UI.widget      import Widget
 
 class NetItemMultiIcon(MultiIconItem):
     _CanvasHWND = None
@@ -32,10 +33,7 @@ class NetItemIcon(IconItem):
         self._CanvasHWND.blit(self._ImgSurf,(self._PosX,self._PosY+(self._Parent._Height-self._Height)/2,self._Width,self._Height))
 
             
-class NetItem(object):
-    _PosX = 0
-    _PosY = 0
-    _Width = 0
+class NetItem(Widget):
     _Height = 30
 
     _Bssid=""    # 50:3A:A0:51:18:3C
@@ -194,6 +192,6 @@ class NetItem(object):
             self._Icons["wifistatus"].NewCoord(self._Width-23,self._PosY)
             self._Icons["wifistatus"].Draw()
         
-        pygame.draw.line(self._Parent._CanvasHWND,(169,169,169),(self._PosX,self._PosY+self._Height-1),(self._PosX+self._Width,self._PosY+self._Height-1),1)        
+        pygame.draw.line(self._Parent._CanvasHWND,MySkinManager.GiveColor('Line'),(self._PosX,self._PosY+self._Height-1),(self._PosX+self._Width,self._PosY+self._Height-1),1)        
         
 

@@ -17,6 +17,7 @@ from UI.keys_def   import CurKeys
 from UI.multi_icon_item import MultiIconItem
 from UI.icon_pool           import MyIconPool
 from UI.scroller   import ListScroller
+from UI.skin_manager import MySkinManager
 
 from list_item  import ListItem
 
@@ -50,7 +51,7 @@ class TimeLibStack:
         return len(self.stack)
 
 class ListPageSelector(PageSelector):
-    _BackgroundColor = pygame.Color(131,199,219)
+    _BackgroundColor = MySkinManager.GiveColor('Front')
 
     def __init__(self):
         self._PosX = 0
@@ -189,7 +190,7 @@ class TimezoneListPage(Page):
         self._BGpng._MyType = ICON_TYPES["STAT"]
         self._BGpng._Parent = self
         self._BGpng.AddLabel("No timezones found on system!", fonts["varela22"])
-        self._BGpng.SetLableColor(pygame.Color(204,204,204))
+        self._BGpng.SetLableColor(MySkinManager.GiveColor('Disabled'))
         self._BGpng.Adjust(0,0,self._BGwidth,self._BGheight,0)
 
 
@@ -199,35 +200,6 @@ class TimezoneListPage(Page):
         self._Scroller._PosY = 2
         self._Scroller.Init()
         
-
-    def ScrollUp(self,Step=1):
-        if len(self._MyList) == 0:
-            return
-        tmp = self._PsIndex
-        self._PsIndex -= Step
-        
-        if self._PsIndex < 0:
-            self._PsIndex = 0
-        dy = tmp-self._PsIndex 
-        cur_li = self._MyList[self._PsIndex]
-        if cur_li._PosY < 0:
-            for i in range(0, len(self._MyList)):
-                self._MyList[i]._PosY += self._MyList[i]._Height*dy
-        
-
-    def ScrollDown(self,Step=1):
-        if len(self._MyList) == 0:
-            return
-        tmp = self._PsIndex
-        self._PsIndex +=Step
-        if self._PsIndex >= len(self._MyList):
-            self._PsIndex = len(self._MyList) -1
-        dy = self._PsIndex - tmp
-        cur_li = self._MyList[self._PsIndex]
-        if cur_li._PosY +cur_li._Height > self._Height:
-            for i in range(0,len(self._MyList)):
-                self._MyList[i]._PosY -= self._MyList[i]._Height*dy
-
     def Click(self):
         if len(self._MyList) == 0:
             return
@@ -274,12 +246,12 @@ class TimezoneListPage(Page):
             self._Screen.SwapAndShow()
         
         if event.key == CurKeys["Right"]:
-            self.ScrollDown(Step=5)
+            self.FScrollDown(Step=5)
             self._Screen.Draw()
             self._Screen.SwapAndShow()
             
         if event.key == CurKeys["Left"]:
-            self.ScrollUp(Step=5)
+            self.FScrollUp(Step=5)
             self._Screen.Draw()
             self._Screen.SwapAndShow()
                                      

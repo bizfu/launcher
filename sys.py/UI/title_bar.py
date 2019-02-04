@@ -17,9 +17,9 @@ from fonts       import fonts
 from icon_item   import IconItem
 from multi_icon_item import MultiIconItem
 from icon_pool   import MyIconPool
-
+from lang_manager import MyLangManager
 from util_funcs  import midRect,SwapAndShow,SkinMap
-
+from widget      import Widget
 from config import Battery
 
 from libs.roundrects import aa_round_rect
@@ -27,9 +27,7 @@ from libs.roundrects import aa_round_rect
 from libs.DBUS        import is_wifi_connected_now,wifi_strength
 
 icon_base_path = SkinMap("gameshell/titlebar_icons/")
-class TitleBar:
-    _PosX      = 0
-    _PosY      = 0
+class TitleBar(Widget):
     _Width     = Width
     _Height    = 25
     _BarHeight  = 24.5
@@ -57,7 +55,9 @@ class TitleBar:
         if self._InLowBackLight < 0:
             self.CheckBatteryStat()
             self.SyncSoundVolume()
+            self.CheckBluetooth()
             self.UpdateWifiStrength()
+            
             SwapAndShow()
 #            print("TitleBar Gobjectroundrobin")
         elif self._InLowBackLight >= 0:
@@ -65,7 +65,9 @@ class TitleBar:
             if self._InLowBackLight > 10:
                 self.CheckBatteryStat()
                 self.SyncSoundVolume()
+                self.CheckBluetooth()
                 self.UpdateWifiStrength()
+                
                 self._InLowBackLight = 0
         
         return True
@@ -95,12 +97,12 @@ class TitleBar:
         return ge
 
     def SyncSoundVolume(self):
-	try:
+        try:
 	        m = alsaaudio.Mixer()
 	        vol = m.getvolume()[0]	
-	except Exception,e:
-		print(str(e))
-	        vol = 0
+        except Exception,e:
+            print(str(e))
+            vol = 0
 
         snd_segs = [ [0,10],[10,30],[30,70],[70,100] ]
 
@@ -176,6 +178,20 @@ class TitleBar:
     def SetBatteryStat(self,bat):
         pass
     
+    def CheckBluetooth(self):
+        out = commands.getstatusoutput("hcitool dev | grep hci0 |cut -f3")
+        if len(out[1]) < 17:
+            print("CheckBluetooth:no bluetooth", out)
+            self._Icons["bluetooth"]._IconIndex = 2
+            return
+        else:
+            out = commands.getstatusoutput("sudo rfkill list | grep hci0 -A 2 | grep yes")
+            if len(out[1]) > 10:
+                self._Icons["bluetooth"]._IconIndex = 1
+                return
+        
+        self._Icons["bluetooth"]._IconIndex = 0
+
     def Init(self,screen):
         
         
@@ -227,7 +243,16 @@ class TitleBar:
 
         self.SyncSoundVolume()
 
-
+        
+        bluetooth   =  MultiIconItem()
+        bluetooth._MyType = ICON_TYPES["STAT"]
+        bluetooth._Parent = self
+        bluetooth._ImageName = icon_base_path+"bluetooth.png"
+        bluetooth.Adjust(start_x+self._icon_width+self._icon_width+8,self._icon_height/2+(self._BarHeight-self._icon_height)/2,self._icon_width,self._icon_height,0)        
+        
+        self._Icons["bluetooth"] = bluetooth
+        self.CheckBluetooth()
+        
         round_corners   =  MultiIconItem()
         round_corners._IconWidth = 10
         round_corners._IconHeight = 10
@@ -270,23 +295,25 @@ class TitleBar:
         
     def Draw(self,title):
         self.ClearCanvas()
-        
+        title = MyLangManager.Tr(title)
         self._Title = title
         
         cur_time =  datetime.now().strftime("%H:%M")
         time_text_size = fonts["varela12"].size(cur_time)
-        title_text_size = fonts["varela16"].size(title)
+        title_text_size = MyLangManager.TrFont("varela16").size(title)
 
-        self._CanvasHWND.blit(fonts["varela16"].render(title,True,self._SkinManager.GiveColor("Text")),midRect(title_text_size[0]/2+self._LOffset,
+        self._CanvasHWND.blit(MyLangManager.TrFont("varela16").render(title,True,self._SkinManager.GiveColor("Text")),midRect(title_text_size[0]/2+self._LOffset,
                                                                     title_text_size[1]/2+(self._BarHeight-title_text_size[1])/2,
                                                                     title_text_size[0],title_text_size[1],Width,Height))
-        self._CanvasHWND.blit(fonts["varela12"].render(cur_time,True,self._SkinManager.GiveColor("Text")),midRect(Width-time_text_size[0]/2-self._ROffset,
+        self._CanvasHWND.blit( fonts["varela12"].render(cur_time,True,self._SkinManager.GiveColor("Text")),midRect(Width-time_text_size[0]/2-self._ROffset,
                                                                         time_text_size[1]/2+(self._BarHeight-time_text_size[1])/2,
                                                                         time_text_size[0],time_text_size[1],Width,Height))
 
         start_x = Width-time_text_size[0]-self._ROffset-self._icon_width*3 # near by the time_text
         
-        self._Icons["sound"].NewCoord(start_x,                      self._icon_height/2+(self._BarHeight-self._icon_height)/2)
+        self._Icons["bluetooth"].NewCoord(start_x - self._icon_width,self._icon_height/2+(self._BarHeight-self._icon_height)/2)
+        
+        self._Icons["sound"].NewCoord(start_x, self._icon_height/2+(self._BarHeight-self._icon_height)/2)
         
         #self._Icons["wifi"].NewCoord(start_x+self._icon_width+5,    self._icon_height/2+(self._BarHeight-self._icon_height)/2)
         
@@ -315,6 +342,8 @@ class TitleBar:
         self._Icons["sound"].Draw()
         
         self._Icons["battery"].Draw()
+        
+        self._Icons["bluetooth"].Draw()
         
         pygame.draw.line(self._CanvasHWND,self._SkinManager.GiveColor("Line"),(0,self._BarHeight),(self._Width,self._BarHeight),self._BorderWidth)
 

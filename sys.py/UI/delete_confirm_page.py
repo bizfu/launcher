@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 
 import pygame
 import os
@@ -13,31 +13,32 @@ from fonts  import fonts
 from util_funcs import midRect
 from keys_def   import CurKeys
 from confirm_page import ConfirmPage
+from lang_manager import MyLangManager
 
 class DeleteConfirmPage(ConfirmPage):
 
     _FileName     = ""
     _TrashDir     = ""
-    _ConfirmText = "Confirm delete?"
-    
+    _ConfirmText = MyLangManager.Tr("ConfirmDeleteQ")
+
     def SetTrashDir(self,d):
         self._TrashDir = d
-        
+
         if os.path.isdir(self._TrashDir) == False:
             raise IOError("Trash not existed")
-        
+
     def SetFileName(self,fn):
         self._FileName = fn
-        
+
     def KeyDown(self,event):
-        
+
         if event.key == CurKeys["Menu"] or event.key == CurKeys["A"]:
-            
+
             self.ReturnToUpLevelPage()
             self._Screen.Draw()
             self._Screen.SwapAndShow()
-                
-        
+
+
         if event.key == CurKeys["B"]:
             try:
                 os.remove(self._TrashDir+"/"+os.path.basename(self._FileName))
@@ -48,21 +49,18 @@ class DeleteConfirmPage(ConfirmPage):
                 shutil.move(self._FileName, self._TrashDir)
             except shutil.Error as e:
                 if "already exists" in str(e):
-                        self._Screen._MsgBox.SetText("Already existed")
+                        self._Screen._MsgBox.SetText("AlreadyExisted")
                 else:
-                    self._Screen._MsgBox.SetText("Error ")
-                
+                    self._Screen._MsgBox.SetText("Error")
+
                 self._Screen._MsgBox.Draw()
                 self._Screen.SwapAndShow()
-            else:    
-                #self._Screen._MsgBox.SetText("Deleteing..")
-                #self._Screen._MsgBox.Draw()
-                #self._Screen.SwapAndShow()
-                self.SnapMsg("Deleteing....")
+            else:
+                self.SnapMsg(MyLangManager.Tr("Deleting"))
                 self._Screen.Draw()
                 self._Screen.SwapAndShow()
                 self.Reset()
-                
+
                 pygame.time.delay(300)
                 self.ReturnToUpLevelPage()
                 self._Screen.Draw()
@@ -70,4 +68,4 @@ class DeleteConfirmPage(ConfirmPage):
 
             print(self._FileName)
 
-    
+

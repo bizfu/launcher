@@ -3,7 +3,7 @@
 import os
 import pygame
 import glob
-
+import time
 from libs.roundrects import aa_round_rect
 
 ## local UI import
@@ -17,6 +17,8 @@ from UI.keys_def   import CurKeys
 from UI.multi_icon_item import MultiIconItem
 from UI.icon_pool import MyIconPool
 from UI.scroller  import ListScroller
+from UI.skin_manager import MySkinManager
+from UI.lang_manager import MyLangManager
 
 from rom_so_confirm_page import RomSoConfirmPage
 
@@ -51,7 +53,7 @@ class FavStack:
         return len(self.stack)
 
 class ListPageSelector(PageSelector):
-    _BackgroundColor = pygame.Color(131,199,219)
+    _BackgroundColor = MySkinManager.GiveColor('Front')
 
     def __init__(self):
         self._PosX = 0
@@ -140,7 +142,7 @@ class FavListPage(Page):
                     pieces  = bname.split(".")
                     if len(pieces) > 1:
                         if pieces[ len(pieces)-1   ].lower() in self._Emulator["EXT"]:
-                            dirmap["file"] = v
+                            dirmap["file"] = v.decode("utf8")
                             ret.append(dirmap)
                 
 #            else:
@@ -229,8 +231,8 @@ class FavListPage(Page):
         bgpng._ImgSurf = MyIconPool._Icons["star"]
         bgpng._MyType = ICON_TYPES["STAT"]
         bgpng._Parent = self
-        bgpng.AddLabel("my favourites games", fonts["varela18"])
-        bgpng.SetLableColor(pygame.Color(204,204,204))
+        bgpng.AddLabel(MyLangManager.Tr("MyFavGames"), MyLangManager.TrFont("varela18"))
+        bgpng.SetLableColor(MySkinManager.GiveColor('Disabled'))
         bgpng.Adjust(0,0,self._BGwidth,self._BGheight,0)
 
         self._Icons["bg"] = bgpng
@@ -253,30 +255,33 @@ class FavListPage(Page):
         if len(self._MyList) == 0:
             return
         
-        self._PsIndex -= 1
+        tmp = self._PsIndex
+        self._PsIndex -= self._ScrollStep
+        
         if self._PsIndex < 0:
             self._PsIndex = 0
-        
+        dy = tmp - self._PsIndex
         cur_li = self._MyList[self._PsIndex]
         if cur_li._PosY < 0:
             for i in range(0, len(self._MyList)):
-                self._MyList[i]._PosY += self._MyList[i]._Height
-
-            self._Scrolled += 1
+                self._MyList[i]._PosY += self._MyList[i]._Height*dy
+            self._Scrolled +=dy
 
     def ScrollDown(self):
         if len(self._MyList) == 0:
             return
-        
-        self._PsIndex +=1
+        tmp = self._PsIndex
+        self._PsIndex +=self._ScrollStep
         if self._PsIndex >= len(self._MyList):
             self._PsIndex = len(self._MyList) -1
-
+        
+        dy = self._PsIndex - tmp 
         cur_li = self._MyList[self._PsIndex]
         if cur_li._PosY +cur_li._Height > self._Height:
             for i in range(0,len(self._MyList)):
-                self._MyList[i]._PosY -= self._MyList[i]._Height
-            self._Scrolled -=1
+                self._MyList[i]._PosY -= self._MyList[i]._Height*dy
+            self._Scrolled -= dy
+    
     def SyncScroll(self):
         ## 
         if self._Scrolled == 0:
@@ -306,8 +311,8 @@ class FavListPage(Page):
         if cur_li._MyType == ICON_TYPES["DIR"]:
             return
         
-        if cur_li._MyType == ICON_TYPES["FILE"]: ## add to playlist only
-            self._Screen._MsgBox.SetText("Launching...")
+        if cur_li._MyType == ICON_TYPES["FILE"]: 
+            self._Screen._MsgBox.SetText("Launching")
             self._Screen._MsgBox.Draw()
             self._Screen.SwapAndShow()
             if self._Emulator["FILETYPE"] == "dir":
@@ -317,26 +322,29 @@ class FavListPage(Page):
                 
             print("Run ",path)
             
-            # check ROM_SO exists
-            if FileExists(self._Emulator["ROM_SO"]):
-                escaped_path = CmdClean( path)
-                
-                custom_config = ""
-                if self._Emulator["RETRO_CONFIG"] != "" and len(self._Emulator["RETRO_CONFIG"]) > 5:
-                    custom_config = " -c " + self._Emulator["RETRO_CONFIG"]
-                        
-                cmdpath = " ".join( (self._Emulator["LAUNCHER"],self._Emulator["ROM_SO"], custom_config, escaped_path))
-                
-                pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
-                return
+            if self._Emulator["FILETYPE"] == "dir":
+                escaped_path = CmdClean(path)
             else:
+                escaped_path = CmdClean(path)
                 
-                self._Screen.PushPage(self._RomSoConfirmDownloadPage)
-                self._Screen.Draw()
-                self._Screen.SwapAndShow()
+            custom_config = ""
+            if self._Emulator["RETRO_CONFIG"] != "" and len(self._Emulator["RETRO_CONFIG"]) > 5:
+                custom_config = " -c " + self._Emulator["RETRO_CONFIG"]
+                
+            cmdpath = " ".join( (self._Emulator["LAUNCHER"],self._Emulator["ROM_SO"], custom_config, escaped_path))
+                
+            if self._Emulator["ROM_SO"] =="": #empty means No needs for rom so
+                pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
+            else:
+                if FileExists(self._Emulator["ROM_SO"]):
+                    pygame.event.post( pygame.event.Event(RUNEVT, message=cmdpath))
+                else:
+                    self._Screen.PushPage(self._RomSoConfirmDownloadPage)
+                    self._Screen.Draw()
+                    self._Screen.SwapAndShow()
 
-            return
-    
+            return 
+        
         self._Screen.Draw()
         self._Screen.SwapAndShow()
 
@@ -369,6 +377,19 @@ class FavListPage(Page):
         self._Screen.Draw()
         self._Screen.SwapAndShow()
         
+    def SpeedScroll(self, thekey):
+        if self._Screen._LastKey == thekey:
+            self._ScrollStep+=1
+            if self._ScrollStep >=5:
+                self._ScrollStep = 5
+        else:
+            self._ScrollStep = 1
+           
+        cur_time = time.time()
+            
+        if cur_time - self._Screen._LastKeyDown > 0.3:
+            self._ScrollStep = 1 
+    
     def KeyDown(self,event):
         
         if event.key == CurKeys["Menu"] or event.key == CurKeys["Left"]: 
@@ -378,10 +399,12 @@ class FavListPage(Page):
 
         
         if event.key == CurKeys["Up"]:
+            self.SpeedScroll(event.key)
             self.ScrollUp()
             self._Screen.Draw()
             self._Screen.SwapAndShow()
         if event.key == CurKeys["Down"]:
+            self.SpeedScroll(event.key)
             self.ScrollDown()
             self._Screen.Draw()
             self._Screen.SwapAndShow()
@@ -414,7 +437,7 @@ class FavListPage(Page):
                 #delete directly without confirm dialog
                 stats = os.stat(cur_li._Path)
                 os.chown(cur_li._Path, stats.st_uid,stats.st_uid) ## normally uid and gid should be the same 
-                self._Screen._MsgBox.SetText("Deleting...")
+                self._Screen._MsgBox.SetText("Deleting")
                 self._Screen._MsgBox.Draw()
                 self._Screen.SwapAndShow()
                 pygame.time.delay(600)

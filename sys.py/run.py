@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-
+import platform
 import dbus
 import dbus.service
 import sys
@@ -31,7 +31,7 @@ else:
 
 
 #local UI import
-from UI.constants    import Width,Height,bg_color,icon_width,icon_height,DT,GMEVT,RUNEVT,RUNSYS,ICON_TYPES,POWEROPT
+from UI.constants    import Width,Height,bg_color,icon_width,icon_height,DT,RUNEVT,RUNSYS,ICON_TYPES,POWEROPT,RESTARTUI,RUNSH
 from UI.util_funcs   import ReplaceSuffix,FileExists, ReadTheFileContent,midRect,color_surface,SwapAndShow,GetExePath,X_center_mouse
 from UI.page         import PageStack,PageSelector,Page
 from UI.label        import Label
@@ -42,6 +42,7 @@ from UI.foot_bar     import FootBar
 from UI.main_screen  import MainScreen
 from UI.above_all_patch import SoundPatch
 from UI.icon_pool    import MyIconPool
+from UI.createby_screen import CreateByScreen
 
 from libs.DBUS            import setup_dbus
 
@@ -66,6 +67,9 @@ last_brt = -1
 
 gobject_flash_led1 = -1
 gobject_flash_led1_counter = 0
+
+Keys = []
+crt_screen = None
 
 def gobject_loop():
     """
@@ -174,7 +178,6 @@ def RestoreLastBackLightBrightness(main_screen):
             f.truncate()
             f.close()
     
-            
     if main_screen._CounterScreen._Counting==True:
         main_screen._CounterScreen.StopCounter()
         main_screen.Draw()
@@ -244,12 +247,7 @@ def InspectionTeam(main_screen):
         
     elif cur_time - everytime_keydown > time_3 and passout_time_stage == 2:
         print("Power Off counting down")
-        
-        main_screen._CounterScreen.Draw()
-        main_screen._CounterScreen.SwapAndShow()
-        main_screen._CounterScreen.StartCounter()
-        
-        
+                
         try:
             f = open(config.BackLight,"r+")
         except IOError:
@@ -261,13 +259,36 @@ def InspectionTeam(main_screen):
                 f.write(str(brt))
                 f.truncate()
                 f.close()
-                
+            
+            main_screen._CounterScreen.Draw()
+            main_screen._CounterScreen.SwapAndShow()
+            main_screen._CounterScreen.StartCounter()
+        
         main_screen._TitleBar._InLowBackLight = 0
 
         passout_time_stage = 4
         
     return True
 
+def RecordKeyDns(thekey,main_screen):
+    global Keys,crt_screen
+    
+    if len(Keys) < 10:
+        Keys.append(thekey)
+    else:
+        Keys = []
+        Keys.append(thekey)
+    
+    keys = ''.join(map(str,Keys))
+    #print(keys)
+    if keys == "273273274274276276275275106107":##uuddllrrab
+        crt_screen.Draw()
+        crt_screen.SwapAndShow()
+        main_screen._TitleBar._InLowBackLight = 0 ##pause titlebar drawing
+        return True
+    
+    return False
+    
 def event_process(event,main_screen):
     global sound_patch
     global everytime_keydown 
@@ -278,11 +299,6 @@ def event_process(event,main_screen):
             return
         if event.type == pygame.QUIT:
             exit()
-        if event.type == GMEVT:
-            main_screen.Draw()
-            main_screen.SwapAndShow()
-            pygame.event.clear(GMEVT)
-            return
         if event.type == RUNEVT:            
             if config.DontLeave==True:
                 os.chdir(GetExePath())
@@ -322,7 +338,23 @@ def event_process(event,main_screen):
                 os.chdir( GetExePath())
                 os.exelp("python","python"," "+myscriptname)
             return
-
+        if event.type == RESTARTUI:
+            pygame.quit()
+            gobject_main_loop.quit()
+            os.chdir(GetExePath())
+            exec_app_cmd = " sync & cd "+GetExePath()+"; exec python "+myscriptname
+            print(exec_app_cmd)
+            os.execlp("/bin/sh","/bin/sh","-c", exec_app_cmd)
+            os.chdir( GetExePath())
+            os.exelp("python","python"," "+myscriptname)
+            return
+        if event.type == RUNSH:
+            pygame.quit()
+            gobject_main_loop.quit()
+            exec_app_cmd = event.message +";"
+            os.execlp("/bin/sh","/bin/sh","-c", exec_app_cmd)
+            sys.exit(-1)
+            return
         if event.type == POWEROPT:
             everytime_keydown = time.time()
             
@@ -373,12 +405,13 @@ def event_process(event,main_screen):
             if event.key == pygame.K_ESCAPE:
                 pygame.event.clear()
 
+            if RecordKeyDns(event.key,main_screen) == False:
+                key_down_cb = getattr(main_screen,"KeyDown",None)
+                if key_down_cb != None:
+                    if callable( key_down_cb ):
+                        main_screen.KeyDown(event)
             
-            key_down_cb = getattr(main_screen,"KeyDown",None)
-            if key_down_cb != None:
-                if callable( key_down_cb ):
-                    main_screen.KeyDown(event)
-            
+            main_screen._LastKeyDown = everytime_keydown
             return
                     
 def gobject_pygame_event_poll_timer(main_screen):
@@ -402,6 +435,8 @@ def gobject_pygame_event_timer(main_screen):
 
 @misc.threaded
 def socket_thread(main_screen):
+    global everytime_keydown
+
     socket_path = "/tmp/gameshell"
     if os.path.exists(socket_path):
         os.remove(socket_path)
@@ -431,7 +466,12 @@ def socket_thread(main_screen):
                 
                 gobject_main_loop.quit()
                 exit()
-                                
+            
+            if tokens[0].lower() == "keydown": ## simulate keydown event
+                everytime_keydown = time.time()
+                if RestoreLastBackLightBrightness(main_screen) == False:
+                    print("RestoreLastBackLightBrightness unix socket false")
+
             if tokens[0].lower() == "poweroff":
                 escevent = pygame.event.Event(pygame.KEYDOWN,{'scancode':9,'key': 27, 'unicode': u'\x1b', 'mod': 0})
                 for i in range(0,5):
@@ -465,7 +505,11 @@ def big_loop():
     main_screen._TitleBar = title_bar 
     main_screen._FootBar  = foot_bar
     main_screen.Init()
+    
     main_screen.ReadTheDirIntoPages("../Menu",0,None)
+    main_screen.ReadTheDirIntoPages("/home/cpi/apps/Menu",1,main_screen._Pages[ len(main_screen._Pages) -1])
+    main_screen.ReunionPagesIcons()
+    
     main_screen.FartherPages()
 
     
@@ -493,6 +537,27 @@ def big_loop():
     gobject_loop()
     
 
+def PreparationInAdv():
+    
+    if "arm" not in platform.machine():
+        return
+    
+    if FileExists(".powerlevel") == False:
+        os.system("touch .powerlevel")
+    
+    with open(".powerlevel","r") as f:
+        powerlevel = f.read()
+    
+    powerlevel = powerlevel.strip()
+    if powerlevel != "":
+        config.PowerLevel = powerlevel
+        if powerlevel != "supersaving":
+            os.system("sudo iw wlan0 set power_save off >/dev/null")
+        else:
+            os.system("sudo iw wlan0 set power_save on > /dev/null")
+    else:
+        os.system("sudo iw wlan0 set power_save off >/dev/null")
+        
 ###MAIN()###
 if __name__ == '__main__':
     
@@ -505,7 +570,7 @@ if __name__ == '__main__':
     screen = pygame.display.set_mode(SCREEN_SIZE, 0, 32)
 
     pygame.event.set_allowed(None) 
-    pygame.event.set_allowed([pygame.KEYDOWN,pygame.KEYUP,GMEVT,RUNEVT,RUNSYS,POWEROPT])
+    pygame.event.set_allowed([pygame.KEYDOWN,pygame.KEYUP,RUNEVT,RUNSYS,POWEROPT,RESTARTUI,RUNSH])
     
     pygame.key.set_repeat(DT+DT*6+DT/2, DT+DT*3+DT/2)
 
@@ -525,16 +590,12 @@ if __name__ == '__main__':
         print("This pygame does not support PNG")
         exit()
 
-
-    if FileExists(".powerlevel") == False:
-        os.system("touch .powerlevel")
     
-    with open(".powerlevel","r") as f:
-        powerlevel = f.read()
+    PreparationInAdv()
     
-    powerlevel = powerlevel.strip()
-    if powerlevel != "":
-        config.PowerLevel = powerlevel
+    crt_screen = CreateByScreen()
+    crt_screen.Init()
+    crt_screen._HWND = screen 
     
     big_loop()
     

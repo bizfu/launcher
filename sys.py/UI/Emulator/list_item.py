@@ -11,6 +11,7 @@ from UI.label  import Label
 from UI.fonts  import fonts
 from UI.icon_item import IconItem
 from UI.util_funcs import midRect
+from UI.skin_manager import MySkinManager
 
 # a item for List
 # - - - - - - - - - - - -- 
@@ -72,6 +73,12 @@ class ListItem(object):
             self._Path = text
 
         label_text = os.path.basename(text)
+        alias_file = os.path.splitext(text)[0] + ".alias"
+        if os.path.isfile(alias_file):
+            fp = open(alias_file, "r")
+            alias = fp.read()
+            fp.close()
+            label_text = alias.decode("utf8")
         
         if self._MyType == ICON_TYPES["DIR"]:
             l.Init(label_text,self._Fonts["normal"])
@@ -106,6 +113,6 @@ class ListItem(object):
             self._Parent._Icons["sys"].NewCoord(self._PosX+12,self._PosY+ (self._Height - self._Parent._Icons["sys"]._Height)/2+self._Parent._Icons["sys"]._Height/2)
             self._Parent._Icons["sys"].Draw()
         
-        pygame.draw.line(self._Parent._CanvasHWND,(169,169,169),(self._PosX,self._PosY+self._Height-1),(self._PosX+self._Width,self._PosY+self._Height-1),1)
+        pygame.draw.line(self._Parent._CanvasHWND,MySkinManager.GiveColor('Line'),(self._PosX,self._PosY+self._Height-1),(self._PosX+self._Width,self._PosY+self._Height-1),1)
     
 

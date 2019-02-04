@@ -7,20 +7,20 @@ import pygame
 from constants import Width,Height
 from util_funcs  import midRect
 
-class Label:
-    _PosX=0
-    _PosY=0
-    _Width=0
-    _Height=0
+#UI lib
+from skin_manager import MySkinManager
+from lang_manager import MyLangManager
+from widget       import Widget
+class Label(Widget):
     _Text=""
     _FontObj=None
-    _Color = pygame.Color(83,83,83)
+    _Color = MySkinManager.GiveColor('Text')
     _CanvasHWND = None
     _TextSurf = None
     def __init__(self):
         pass
     
-    def Init(self,text,font_obj,color=pygame.Color(83,83,83)):
+    def Init(self, text, font_obj, color=MySkinManager.GiveColor('Text')):
         self._Color = color
         self._FontObj = font_obj
         self._Text = text
@@ -28,10 +28,6 @@ class Label:
         my_text = self._FontObj.render(self._Text,True,self._Color)
         self._Width = my_text.get_width()
         self._Height = my_text.get_height()
-
-    def NewCoord(self,x,y):
-        self._PosX = x
-        self._PosY = y
         
     def SetColor(self,color):
         self._Color = color
@@ -46,8 +42,6 @@ class Label:
         self._Width = my_text.get_width()
         self._Height = my_text.get_height()
 
-    def Width(self):
-        return self._Width
     
     def SetCanvasHWND(self,_canvashwnd):
         self._CanvasHWND = _canvashwnd

@@ -17,6 +17,8 @@ from constants    import ALIGN,icon_width,icon_height,Width,Height,ICON_TYPES
 from util_funcs   import midRect
 from keys_def     import CurKeys
 from icon_pool    import MyIconPool
+from lang_manager import MyLangManager
+from widget       import Widget
 
 class PageStack:
     def __init__(self):
@@ -36,11 +38,8 @@ class PageStack:
     def Length(self):
         return len(self.stack)
 
-class PageSelector:
-    _PosX = 0
-    _PosY = 0
-    _Width = 0
-    _Height = 0
+class PageSelector(Widget):
+
     _Parent = None
     _Alpha  = 0
     _OnShow = True
@@ -80,11 +79,7 @@ class PageSelector:
             if self._IconSurf != None:
                 self._Parent._CanvasHWND.blit(self._IconSurf,rect)
             
-class Page(object):
-    _PosX=0
-    _PosY=0
-    _Width=0
-    _Height=0
+class Page(Widget):
     _Icons = []
     _Ps = None
     _PsIndex = 0
@@ -99,11 +94,14 @@ class Page(object):
     _Name       = ""
     _Screen     = None ## Should be the Screen Class
     _PageIconMargin = 20
-    _FootMsg    = ["Nav.","","","","Enter"] ## Default Page Foot info
+    _FootMsg    = ["Nav","","","","Enter"] ## Default Page Foot info
 
     _SelectedIconTopOffset=20
     _EasingDur   = 30
-    
+    _Padding = pygame.Rect(0,0,0,0)# x,y,w,h
+    _Margin  = pygame.Rect(0,0,0,0)
+    _ScrollStep = 1
+        
     def __init__(self):
         self._Icons = []
 
@@ -524,7 +522,7 @@ class Page(object):
             if api_cb != None:
                 if callable(api_cb):
                     cur_icon._CmdPath.API(self._Screen)
-        elif cur_icon._MyType == ICON_TYPES["Emulator"]:
+        elif cur_icon._MyType == ICON_TYPES["Emulator"] or cur_icon._MyType == ICON_TYPES["Commercial"]:
             cur_icon._CmdPath.API(self._Screen)
             
     def ReturnToUpLevelPage(self):
@@ -554,8 +552,59 @@ class Page(object):
     def DrawIcons(self):
         for i in range(0,self._IconNumbers):
             self._Icons[i].Draw()
-            
 
+    ##make sure the Class has the _MyList
+    def ScrollDown(self):
+        if len(self._MyList) == 0:
+            return
+        self._PsIndex +=1
+        if self._PsIndex >= len(self._MyList):
+            self._PsIndex = len(self._MyList) -1
+
+        cur_li = self._MyList[self._PsIndex]
+        if cur_li._PosY +cur_li._Height > self._Height:
+            for i in range(0,len(self._MyList)):
+                self._MyList[i]._PosY -= self._MyList[i]._Height
+    
+    def ScrollUp(self):
+        if len(self._MyList) == 0:
+            return
+        self._PsIndex -= 1
+        if self._PsIndex < 0:
+            self._PsIndex = 0
+        cur_li = self._MyList[self._PsIndex]
+        if cur_li._PosY < 0:
+            for i in range(0, len(self._MyList)):
+                self._MyList[i]._PosY += self._MyList[i]._Height
+
+    def FScrollUp(self,Step=1):
+        if len(self._MyList) == 0:
+            return
+        tmp = self._PsIndex
+        self._PsIndex -= Step
+        
+        if self._PsIndex < 0:
+            self._PsIndex = 0
+        dy = tmp-self._PsIndex 
+        cur_li = self._MyList[self._PsIndex]
+        if cur_li._PosY < 0:
+            for i in range(0, len(self._MyList)):
+                self._MyList[i]._PosY += self._MyList[i]._Height*dy
+        
+
+    def FScrollDown(self,Step=1):
+        if len(self._MyList) == 0:
+            return
+        tmp = self._PsIndex
+        self._PsIndex +=Step
+        if self._PsIndex >= len(self._MyList):
+            self._PsIndex = len(self._MyList) -1
+        dy = self._PsIndex - tmp
+        cur_li = self._MyList[self._PsIndex]
+        if cur_li._PosY +cur_li._Height > self._Height:
+            for i in range(0,len(self._MyList)):
+                self._MyList[i]._PosY -= self._MyList[i]._Height*dy
+    
     def KeyDown(self,event):##default keydown,every inherited page class should have it's own KeyDown
         if event.key == CurKeys["A"]:
             if self._FootMsg[3] == "Back":

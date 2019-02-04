@@ -5,6 +5,8 @@ from pygame.locals import *
 from sys import exit
 import os
 import sys
+import json
+from operator import itemgetter
 
 from libs import easing
 from datetime import datetime
@@ -19,13 +21,16 @@ from title_bar   import TitleBar
 from foot_bar    import FootBar
 from constants   import Width,Height,bg_color
 from util_funcs  import midRect,FileExists,ReplaceSuffix,ReadTheFileContent,CmdClean,MakeExecutable,SkinMap
-from fonts       import fonts
 from keys_def    import CurKeys
 from label       import Label
 from untitled_icon import UntitledIcon
 from Emulator    import MyEmulator
+from CommercialSoftwarePackage import MyCommercialSoftwarePackage
 
-from skin_manager import SkinManager
+from skin_manager import MySkinManager
+from lang_manager import MyLangManager
+from widget       import Widget
+
 from counter_screen import CounterScreen
 
 class MessageBox(Label):
@@ -34,7 +39,7 @@ class MessageBox(Label):
     def __init__(self):
         pass
     
-    def Init(self,text,font_obj,color=pygame.Color(83,83,83)):
+    def Init(self,text,font_obj,color=MySkinManager.GiveColor('Text')):
         self._Color = color
         self._FontObj = font_obj
         self._Text = text
@@ -45,12 +50,12 @@ class MessageBox(Label):
         self._HWND       = self._Parent._CanvasHWND
 
     def SetText(self,text):
-        self._Text = text
+        self._Text = MyLangManager.Tr(text)
 
     def PreDraw(self):
         self._Width = 0
         self._Height = 0
-        self._CanvasHWND.fill( (255,255,255))
+        self._CanvasHWND.fill(MySkinManager.GiveColor('White'))
         
         words = self._Text.split(' ')
         space = self._FontObj.size(' ')[0]
@@ -97,7 +102,7 @@ class MessageBox(Label):
         
         padding = 5
        
-        pygame.draw.rect(self._HWND,(255,255,255),(x_-padding,y_-padding, self._Width+padding*2,self._Height+padding*2))        
+        pygame.draw.rect(self._HWND,MySkinManager.GiveColor('White'),(x_-padding,y_-padding, self._Width+padding*2,self._Height+padding*2))        
     
         if self._HWND != None:
             rect = pygame.Rect(x_,y_,self._Width,self._Height)
@@ -105,7 +110,7 @@ class MessageBox(Label):
             #self._HWND.blit(self._CanvasHWND,rect)
 
         if withborder == True:
-            pygame.draw.rect(self._HWND,(0,0,0),(x_-padding,y_-padding, self._Width+padding*2,self._Height+padding*2),1)
+            pygame.draw.rect(self._HWND,MySkinManager.GiveColor('Black'),(x_-padding,y_-padding, self._Width+padding*2,self._Height+padding*2),1)
         
     def Draw(self):        
         x = (self._Parent._Width)/2
@@ -116,13 +121,13 @@ class MessageBox(Label):
 
 python_package_flag = "__init__.py"
 emulator_flag       = "action.config"
+commercialsoftware_flag = "compkginfo.json" 
 
 ##Abstract object for manage Pages ,not the pygame's physic screen
-class MainScreen(object):
+class MainScreen(Widget):
     _Pages = []
     _PageMax = 0
     _PageIndex = 0
-    _PosX  = 0
     _PosY  = TitleBar._BarHeight+1
     _Width = Width 
     _Height = Height -FootBar._BarHeight -TitleBar._BarHeight
@@ -133,12 +138,15 @@ class MainScreen(object):
     _TitleBar    = None
     _FootBar     = None
     _MsgBox      = None
-    _MsgBoxFont  = fonts["veramono20"]
-    _IconFont    = fonts["varela15"]
+    _MsgBoxFont  = MyLangManager.TrFont("veramono20")
+    _IconFont    = MyLangManager.TrFont("varela15")
     _SkinManager = None
 
     _Closed      = False
     _CounterScreen = None
+    
+    _LastKey = -1
+    _LastKeyDown = -1
     
     def __init__(self):
         self._Pages = []
@@ -150,9 +158,8 @@ class MainScreen(object):
         self._MsgBox._Parent= self
         self._MsgBox.Init(" ", self._MsgBoxFont)
 
-        self._SkinManager = SkinManager()
-        self._SkinManager.Init()
-
+        self._SkinManager = MySkinManager
+    
         self._CounterScreen = CounterScreen()
         self._CounterScreen._HWND = self._HWND
         
@@ -347,7 +354,7 @@ class MainScreen(object):
         self._Pages.append(Page)
 
     def ClearCanvas(self):
-        self._CanvasHWND.fill((255,255,255))
+        self._CanvasHWND.fill(self._SkinManager.GiveColor('White'))
         
     def SwapAndShow(self):
         if self._Closed == True:
@@ -381,15 +388,66 @@ class MainScreen(object):
             if i.endswith(emulator_flag):
                 return True
         return False
-    
+        
+    def IsCommercialPackage(self,dirname):
+        files = os.listdir(dirname)
+        for i in sorted(files):
+            if i.endswith(commercialsoftware_flag):
+                return True
+        return False
+            
     def IsPythonPackage(self,dirname):
         files = os.listdir(dirname)
         for i in sorted(files):
             if i.endswith(python_package_flag):
                 return True
         return False
-
+    
+    def ReunionPagesIcons(self): #This is for combining /home/cpi/apps/Menu and ~/launcher/Menu/GameShell 
+        for p in self._Pages:
+            tmp = []
+            for i,x in enumerate(p._Icons):
+                tup = ('',0)
+                if hasattr(x, '_FileName'):
+                    if str.find(x._FileName,"_") < 0:
+                        tup = ("98_"+x._FileName,i) # prefer to maintain PowerOFF in last position if the filename has no order labels
+                    else:
+                        tup = (x._FileName, i)
+                else:
+                    tup = ("",i)
+                
+                tmp.append(tup)
+            tmp = sorted(tmp, key=itemgetter(0))
+            
+            retro_games_idx = []
+            retro_games_dir = "20_Retro Games"
+            for i,x in enumerate(tmp):
+                if retro_games_dir in x[0]:
+                    retro_games_idx.append(x[1])
+            
+            if len(retro_games_idx) > 1:
+                for i in range(1,len(retro_games_idx)):
+                    p._Icons[retro_games_idx[0]]._LinkPage._Icons.extend( p._Icons[retro_games_idx[i]]._LinkPage._Icons) ### assumes the folder of ~/apps/Menu/20_Retro Games is legalzip","sfc"],
+                
+            
+                tmp_swap = []
+                for i, x in enumerate(tmp):
+                    if retro_games_dir not in x[0]:
+                        tmp_swap.append(x)
+                    if retro_games_dir in x[0] and i == retro_games_idx[0]:
+                        tmp_swap.append(x)
+                
+                tmp = tmp_swap
+            
+            #print(tmp)
+            new_icons = []
+            for x in tmp:
+                new_icons.append( p._Icons[ x[1] ] )
+            p._Icons = new_icons
+    
+    
     def ReadTheDirIntoPages(self,_dir,pglevel,cur_page):
+        global commercialsoftware_flag
         
         if FileExists(_dir) == False and os.path.isdir(_dir) == False:
             return
@@ -406,8 +464,9 @@ class MainScreen(object):
                 else: ## On CurPage now
                     i2 = self.ExtraName(i)
                     iconitem = IconItem()
+                    iconitem._FileName = i
                     iconitem._CmdPath = ""
-                    iconitem.AddLabel(i2,self._IconFont)
+                    iconitem.AddLabel(MyLangManager.Tr(i2),self._IconFont)
                     if FileExists( _dir+"/"+i+"/"+i2+".png"): ### 20_Prog/Prog.png , cut 20_ 
                         iconitem._ImageName = _dir+"/"+i+"/"+i2+".png"
                     elif FileExists( SkinMap(_dir+"/"+i2+".png") ):
@@ -440,6 +499,7 @@ class MainScreen(object):
                         obj["ROM"] = ""
                         obj["ROM_SO"] =""
                         obj["EXT"]    = []
+                        obj["EXCLUDE"] = []
                         obj["FILETYPE"] = "file"
                         obj["LAUNCHER"] = ""
                         obj["TITLE"]    = "Game"
@@ -454,14 +514,20 @@ class MainScreen(object):
                             with f:
                                 content = f.readlines()
                                 content = [x.strip() for x in content] 
-                        for i in content:
-                            pis = i.split("=")
+                        for c in content:
+                            pis = c.split("=")
                             if len(pis) > 1:
                                 if "EXT" in pis[0]:
                                     obj[pis[0]] = pis[1].split(",")
+                                elif "EXCLUDE" in pis[0]:
+                                    obj[pis[0]] = pis[1].split(",")
                                 else:
                                     obj[pis[0]] = pis[1]
-                        
+
+                        if FileExists(_dir+"/"+i+"/retroarch-local.cfg"):
+                            obj["RETRO_CONFIG"] = CmdClean(os.path.abspath( _dir+"/"+i+"/retroarch-local.cfg" ))
+                            print("a local retroarch cfg:", obj["RETRO_CONFIG"])
+                            
                         em = MyEmulator()
                         em._Emulator = obj
                         
@@ -470,11 +536,30 @@ class MainScreen(object):
                         iconitem._MyType  = ICON_TYPES["Emulator"]
                         cur_page._Icons.append(iconitem)
 
-                    elif self.IsExecPackage(_dir+"/"+i):
+                    elif self.IsCommercialPackage( os.path.join(_dir,i)):
+                        data = None
+                        em = MyCommercialSoftwarePackage()
+                        if FileExists( _dir+"/"+i+"/.done"):
+                            print(_dir+"/"+i+"/.done")
+                            em._Done = os.path.realpath(_dir+"/"+i+"/"+i2+".sh")
+                        else:
+                            with open(os.path.join(_dir,i) +"/"+commercialsoftware_flag) as f:
+                                data = json.load(f)
+                            em._ComPkgInfo = data
+                            em._Done = ""
+                        
+                        em._InvokeDir = os.path.realpath( os.path.join(_dir,i))
+                        em.Init(self)
+                        
+                        iconitem._CmdPath = em
+                        iconitem._MyType  = ICON_TYPES["Commercial"]
+                        cur_page._Icons.append(iconitem)
+                        
+                    elif self.IsExecPackage(_dir+"/"+i): ## ExecPackage is the last one to check
                         iconitem._MyType  = ICON_TYPES["EXE"]                        
                         iconitem._CmdPath = os.path.realpath(_dir+"/"+i+"/"+i2+".sh")
                         MakeExecutable(iconitem._CmdPath)
-                        cur_page._Icons.append(iconitem)
+                        cur_page._Icons.append(iconitem)                    
                     else:                            
                         iconitem._MyType  = ICON_TYPES["DIR"]
                         iconitem._LinkPage = Page()
@@ -488,6 +573,7 @@ class MainScreen(object):
                     
                     #cmd      =  ReadTheFileContent(_dir+"/"+i)
                     iconitem = IconItem()
+                    iconitem._FileName = i
                     iconitem._CmdPath = os.path.realpath(_dir+"/"+i)
                     MakeExecutable(iconitem._CmdPath)
                     iconitem._MyType  = ICON_TYPES["EXE"]
@@ -507,7 +593,7 @@ class MainScreen(object):
                         
                         iconitem._ImageName = ""
                         
-                    iconitem.AddLabel(i2.split(".")[0],self._IconFont)
+                    iconitem.AddLabel(MyLangManager.Tr(i2.split(".")[0]),self._IconFont)
                     iconitem._LinkPage = None
                     cur_page._Icons.append(iconitem)
 
@@ -553,9 +639,10 @@ class MainScreen(object):
             if callable( current_page_key_down_cb ):
                 self._CurrentPage.KeyDown(event)
                 
-    
+        self._LastKey = event.key
+        
     def DrawRun(self):
-        self._MsgBox.SetText("Launching....")
+        self._MsgBox.SetText(MyLangManager.Tr("Launching"))
         self._MsgBox.Draw()
     
     def Draw(self):

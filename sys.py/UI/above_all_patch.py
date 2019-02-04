@@ -17,11 +17,11 @@ from util_funcs  import midRect
 from fonts       import fonts
 from keys_def    import CurKeys
 from label       import Label
+from skin_manager import MySkinManager
+from widget      import Widget
 
 
-
-
-class AboveAllPatch(object):
+class AboveAllPatch(Widget):
     _PosX  =Width/2
     _PosY  =Height/2
     _Width =50
@@ -30,8 +30,8 @@ class AboveAllPatch(object):
     _Text  =""
     _FontObj=fonts["veramono20"]
     _Parent =None
-    _Color = pygame.Color(83,83,83)
-    _ValColor= pygame.Color(0,0,255)
+    _Color = MySkinManager.GiveColor('Text')
+    _ValColor = MySkinManager.GiveColor('URL')
     _CanvasHWND = None
     _TextSurf = None
     _Icons   = {}
@@ -130,5 +130,5 @@ class SoundPatch(AboveAllPatch):
             #w = 10,h = 40
             vol_rect = pygame.Rect(80+i*20, self._Height/2+20,10, 40)
             
-            aa_round_rect(self._CanvasHWND,vol_rect, self._Parent._SkinManager.GiveColor("Front"),3,0, self._Parent._SkinManager.GiveColor("Front"))
+            aa_round_rect(self._CanvasHWND,vol_rect,MySkinManager.GiveColor("Front"),3,0,MySkinManager.GiveColor("Front"))
     

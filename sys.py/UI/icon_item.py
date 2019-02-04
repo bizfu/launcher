@@ -6,12 +6,9 @@ import pygame
 from constants  import icon_width,icon_height,ICON_TYPES,ALIGN,icon_ext,Width,Height
 from util_funcs import color_surface,midRect
 from label      import Label
-
-class IconItem:
-    _PosX=0
-    _PosY=0
-    _Width=0
-    _Height=0
+from lang_manager import MyLangManager
+from widget     import Widget 
+class IconItem(Widget):
     _ImageName=""
     _ImgSurf = None
     _Parent = None
@@ -36,10 +33,6 @@ class IconItem:
     def SetLableColor(self,color):
         self._Label.SetColor(color)
         
-    def NewCoord(self,x,y):
-        self._PosX = x
-        self._PosY = y
-
     def AddLabel(self,text,fontobj):
         if self._Label == None:
             self._Label = Label()
@@ -65,7 +58,7 @@ class IconItem:
             self._LinkPage._Screen = self._Parent._Screen
             self._LinkPage._CanvasHWND       = self._Parent._Screen._CanvasHWND
             
-            self._LinkPage._FootMsg =  ["Nav.","","","Back","Enter"] ## Default Page Foot info
+            self._LinkPage._FootMsg =  ["Nav","","","Back","Enter"] ## Default Page Foot info
             
             if self._LinkPage._Align == ALIGN["HLeft"]:
                 self._LinkPage.AdjustHLeftAlign()
@@ -88,7 +81,26 @@ class IconItem:
 
     def Clear(self):
         pass
+        
+    def DrawTopLeft(self):
+        if self._Align==ALIGN["VCenter"]: #default
+            if self._Label != None:
+                self._Label._PosX = self._PosX - self._Label._Width/2 + self._Parent._PosX
+                self._Label._PosY = self._PosY + self._Height/2 +6  + self._Parent._PosY
+                
+        elif self._Align ==ALIGN["HLeft"]:
+            if self._Label != None:
+                self._Label._PosX = self._PosX + self._Width/2 + 3 + self._Parent._PosX
+                self._Label._PosY = self._PosY - self._Label._Height/2 + self._Parent._PosY
 
+        if self._Label!=None:
+            self._Label.Draw()
+        
+        if self._ImgSurf != None:
+            self._Parent._CanvasHWND.blit(self._ImgSurf,pygame.Rect(self._PosX+self._Parent._PosX,
+                                                                    self._PosY+self._Parent._PosY,
+                                                                    self._Width,
+                                                                    self._Height))
     def Draw(self):
         if self._Align==ALIGN["VCenter"]: #default
             if self._Label != None:

@@ -13,38 +13,13 @@ from UI.fonts  import fonts
 from UI.util_funcs import midRect,FileExists
 from UI.keys_def   import CurKeys
 from UI.scroller   import ListScroller
+from UI.skin_manager import MySkinManager
+from UI.lang_manager import MyLangManager
+from UI.info_page_selector import InfoPageSelector
 
 from list_item  import ListItem
 
 import myvars
-
-class ListPageSelector(PageSelector):
-    _BackgroundColor = pygame.Color(131,199,219)
-
-    def __init__(self):
-        self._PosX = 0
-        self._PosY = 0
-        self._Height = 0
-        self._Width  = Width
-
-    def AnimateDraw(self,x2,y2):
-        pass
-
-    def Draw(self):
-        idx = self._Parent._PsIndex
-        if idx < len(self._Parent._MyList):
-            x = 2
-            y = self._Parent._MyList[idx]._PosY+1
-            h = self._Parent._MyList[idx]._Height -3
-            
-            self._PosX = x
-            self._PosY = y
-            self._Height = h
-            
-            aa_round_rect(self._Parent._CanvasHWND,  
-                          (x,y,self._Width-4,h),self._BackgroundColor,4,0,self._BackgroundColor)
-
-
 
 class ListPage(Page):
 
@@ -53,7 +28,7 @@ class ListPage(Page):
     
     _FootMsg = ["Nav","","","Back","Enter"]
     _MyList = []
-    _ListFontObj = fonts["varela15"]
+    _ListFontObj = MyLangManager.TrFont("varela15")
 
     _Scroller = None
     
@@ -70,23 +45,30 @@ class ListPage(Page):
 
         self._CanvasHWND = self._Screen._CanvasHWND
 
-        ps = ListPageSelector()
+        ps = InfoPageSelector()
         ps._Parent = self
+        ps._PosX = 2
         self._Ps = ps
         self._PsIndex = 0
-
+        
         #                ""   pkgname, label
         alist         = [["","Airplane","Airplane Mode"],
                          ["","PowerOptions","Power Options"],
                          ["","Wifi","Wi-Fi"],
+                         ["","Bluetooth","Bluetooth"],
                          ["","Sound","Sound Volume"],
                          ["","Brightness","BackLight Brightness"],
                          ["","Storage",""],
                          ["","Time","Timezone"],
+                         ["","Languages","Languages"],
+                         ["","Notification","Notification"],
                          ["","Update", ""],
                          ["","About",  "About"],
                          ["","PowerOFF","Power off"],
-                         ["","ButtonsLayout","Buttons Layout"],]
+                         ["","ButtonsLayout","Buttons Layout"],
+                         ["","LauncherGo","Switch to LauncherGo"],
+                         ["","Lima","GPU driver switch"],
+                         ["","GateWay","Network gateway switch"]]
 
         start_x  = 0
         start_y  = 0
@@ -121,30 +103,6 @@ class ListPage(Page):
         self._Scroller._PosX = self._Width - 10
         self._Scroller._PosY = 2
         self._Scroller.Init()
-
-    def ScrollUp(self):
-        if len(self._MyList) == 0:
-            return
-        self._PsIndex -= 1
-        if self._PsIndex < 0:
-            self._PsIndex = 0
-        cur_li = self._MyList[self._PsIndex]
-        if cur_li._PosY < 0:
-            for i in range(0, len(self._MyList)):
-                self._MyList[i]._PosY += self._MyList[i]._Height
-        
-
-    def ScrollDown(self):
-        if len(self._MyList) == 0:
-            return
-        self._PsIndex +=1
-        if self._PsIndex >= len(self._MyList):
-            self._PsIndex = len(self._MyList) -1
-
-        cur_li = self._MyList[self._PsIndex]
-        if cur_li._PosY +cur_li._Height > self._Height:
-            for i in range(0,len(self._MyList)):
-                self._MyList[i]._PosY -= self._MyList[i]._Height
 
     def Click(self):
         cur_li = self._MyList[self._PsIndex]
